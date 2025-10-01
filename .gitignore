@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+
+# Playwright artifacts
+playwright-report/
+playwright/.cache/
+playwright/.last-run
+
+# Test results
+test-results/
+
+# env
+.env
+
+# logs
+*.log
