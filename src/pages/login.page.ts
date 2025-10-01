@@ -7,6 +7,24 @@ export class LoginPage {
     this.page = page;
   }
 
+  get otpField(): Locator {
+    // 代表的な OTP 入力欄候補をまとめたロケーター（OR で結合）
+    // - ラベル/プレースホルダー表記揺れに対応
+    // - name/id に otp/two_factor/code を含むケースをカバー
+    const css = [
+      'input[autocomplete="one-time-code"]',
+      'input[name*="otp" i]',
+      'input[id*="otp" i]',
+      'input[name*="two_factor" i]',
+      'input[id*="two_factor" i]',
+      'input[name*="code" i]',
+      'input[id*="code" i]'
+    ].join(', ');
+    const byPlaceholder = this.page.getByPlaceholder(/6桁|コード|認証コード|確認コード|otp|one[- ]?time/i);
+    const byLabel = this.page.getByLabel(/6桁コード|認証コード|確認コード|ワンタイム|one[- ]?time|otp/i);
+    return this.page.locator(`${css}`).or(byPlaceholder).or(byLabel);
+  }
+
   async goto(url: string): Promise<void> {
     const u = new URL(url);
     const baUser = process.env.TAO_BASIC_AUTH_USER;
@@ -17,6 +35,11 @@ export class LoginPage {
     }
     const res = await this.page.goto(u.toString(), { waitUntil: 'domcontentloaded' });
     await this.failFastBasicAuth(res ?? undefined);
+    try {
+      if (res && 'status' in res && (res as any).status() === 404) {
+        throw new Error(`ページが見つかりませんでした: ${u.toString()}`);
+      }
+    } catch {}
   }
 
   private originFrom(url: string): string {
@@ -53,6 +76,16 @@ export class LoginPage {
       try {
         const res = await this.page.goto(url, { waitUntil: 'domcontentloaded' });
         await this.failFastBasicAuth(res ?? undefined);
+        // 404 は即次候補へ
+        try {
+          if (res && 'status' in res && (res as any).status() === 404) {
+            continue;
+          }
+        } catch {}
+        // SPA の 404 テンプレを軽量検知
+        if (await this.isLikelyNotFound().catch(() => false)) {
+          continue;
+        }
         await this.firstVisible([
           this.page.getByRole('textbox', { name: /メール|email/i }),
           this.page.getByLabel(/メール|email/i),
@@ -64,6 +97,18 @@ export class LoginPage {
       }
     }
     throw new Error(`ログインフォームが見つかりません。最後のエラー: ${lastErr}`);
+  }
+
+  private async isLikelyNotFound(): Promise<boolean> {
+    const candidates: Locator[] = [
+      this.page.getByText(/404/i),
+      this.page.getByText(/not\s*found/i),
+      this.page.getByText(/ページが見つかりません/i),
+    ];
+    for (const c of candidates) {
+      if (await c.isVisible({ timeout: 300 }).catch(() => false)) return true;
+    }
+    return false;
   }
 
   private async failFastBasicAuth(res?: import('@playwright/test').APIResponse | import('@playwright/test').Response): Promise<void> {
@@ -80,7 +125,7 @@ export class LoginPage {
     }
   }
 
-  private async firstVisible(locators: Locator[], timeout = 2000): Promise<Locator> {
+  private async firstVisible(locators: Locator[], timeout = 8000): Promise<Locator> {
     for (const loc of locators) {
       try {
         await loc.waitFor({ state: 'visible', timeout });
@@ -120,25 +165,42 @@ export class LoginPage {
 
   async login(email: string, password: string): Promise<void> {
     const emailField = await this.firstVisible([
+      this.page.getByPlaceholder(/メール|email/i),
       this.page.getByRole('textbox', { name: /メール|email/i }),
       this.page.getByLabel(/メール|email/i),
       this.page.locator('input[type="email"]'),
-    ]);
+      this.page.locator('input[name*="email" i]'),
+    ], 10000);
 
     const passwordField = await this.firstVisible([
+      this.page.getByPlaceholder(/パスワード|password/i),
       this.page.getByLabel(/パスワード|password/i),
       this.page.getByRole('textbox', { name: /パスワード|password/i }),
       this.page.locator('input[type="password"]'),
-    ]);
-
-    const loginButton = await this.firstVisible([
-      this.page.getByRole('button', { name: /ログイン|サインイン|sign in|log ?in/i }),
-      this.page.getByRole('button', { name: /送信/ }),
-    ]);
+      this.page.locator('input[name*="password" i]'),
+    ], 10000);
 
     await emailField.fill(email);
     await passwordField.fill(password);
-    await loginButton.click();
+
+    // 送信手段: ボタンが取れればクリック、無ければ Enter 提交
+    const buttonCandidates: Locator[] = [
+      this.page.getByRole('button', { name: /ログイン|サインイン|sign in|log ?in/i }),
+      this.page.getByRole('button', { name: /送信/ }),
+      this.page.locator('button[type="submit"]'),
+      this.page.locator('input[type="submit"]'),
+    ];
+    let clicked = false;
+    for (const btn of buttonCandidates) {
+      if (await btn.isVisible({ timeout: 500 }).catch(() => false)) {
+        await btn.click();
+        clicked = true;
+        break;
+      }
+    }
+    if (!clicked) {
+      await passwordField.press('Enter');
+    }
   }
 
   async sendOtpIfPrompted(): Promise<void> {

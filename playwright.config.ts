@@ -22,9 +22,6 @@ export default defineConfig({
     httpCredentials: process.env.TAO_BASIC_AUTH_USER && process.env.TAO_BASIC_AUTH_PASSWORD
       ? { username: process.env.TAO_BASIC_AUTH_USER, password: process.env.TAO_BASIC_AUTH_PASSWORD }
       : undefined,
-    extraHTTPHeaders: basicAuthHeader
-      ? { Authorization: basicAuthHeader }
-      : undefined,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'off',

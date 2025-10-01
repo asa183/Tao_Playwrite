@@ -10,7 +10,7 @@
 ## セットアップ
 ```bash
 cd tao-login-otp-e2e
-npm i -D @playwright/test@^1.47.0
+npm i
 npx playwright install chromium
 ```
 
@@ -24,16 +24,23 @@ export TAO_ADMIN_PASSWORD="********"                                        # �
 # 任意: ステージングが Basic 認証で保護されている場合
 export TAO_BASIC_AUTH_USER="stg-user"
 export TAO_BASIC_AUTH_PASSWORD="stg-pass"
+# Basic認証を付与する対象ホストを明示（カンマ区切り / ワイルドカード可）
+# 例: assetsやcdnにもBasicが必要な場合
+export TAO_BASIC_AUTH_HOSTS="assets.stg.example.tao,cdn.stg.example.tao,*.stg.example.tao"
 ```
 
 補足:
-- `TAO_BASE_URL` は保護ルートでも構いません。テストが自動でログイン URL 候補（/ja/admin/sign_in, /admin/sign_in, /ja/admin/login など）へフォールバックします。
-- Basic 認証は httpCredentials / Authorization ヘッダ / ルーティング経由で付与します。
+- `TAO_BASE_URL` は保護ルートでも構いません。テストが自動でログイン URL 候補（/ja/admin/sign_in, /admin/sign_in, /ja/admin/login など）へフォールバックします。直接リンクで 404 の場合は次候補へフォールバックします。
+- Basic 認証は httpCredentials（同一ホスト）+ ルーティング経由の `Authorization` ヘッダ（指定ホスト群）で付与します。`TAO_BASIC_AUTH_HOSTS` にカンマ区切りで追加ホスト、または `*.example.com` のようなワイルドカードを指定可能です。
 
 ## 実行
 - 通常実行
 ```bash
 npx playwright test
+```
+- ログイン（OTP手前）までの確認だけ実行
+```bash
+npx playwright test src/specs/login.preotp.spec.ts --ui
 ```
 - UI で進行を目視
 ```bash
@@ -45,6 +52,14 @@ npx playwright show-report
 ```
 
 実行中、ターミナルに「メールに届いた6桁コードを入力してください:」と表示されたら OTP を手入力して Enter してください。
+
+### ログインのみ検証（OTP入力をスキップ）
+ログイン画面到達〜OTP入力欄の表示まででテストを完了したい場合は、以下を設定します。
+
+```bash
+export TAO_LOGIN_ONLY=1
+npx playwright test --ui
+```
 
 ## 成功条件
 - テストが緑で終了（exit code 0）
@@ -69,4 +84,3 @@ npx playwright show-report
 
 ## 免責
 - 依存は @playwright/test のみ。CI・Gmail API は含みません。
-
