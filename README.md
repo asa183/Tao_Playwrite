@@ -42,6 +42,11 @@ npx playwright test
 ```bash
 npx playwright test src/specs/login.preotp.spec.ts --ui
 ```
+- OTP をブラウザで手入力して進める（ターミナル入力なし）
+```bash
+export TAO_OTP_MANUAL=1
+npx playwright test src/specs/login.otp.spec.ts --headed
+```
 - UI で進行を目視
 ```bash
 npx playwright test --ui
@@ -59,6 +64,12 @@ npx playwright show-report
 ```bash
 export TAO_LOGIN_ONLY=1
 npx playwright test --ui
+```
+
+### OTP をターミナル入力で進める（従来）
+```bash
+npx playwright test src/specs/login.otp.spec.ts --headed
+# 実行中にターミナルへ 6 桁コードを入力
 ```
 
 ## 成功条件

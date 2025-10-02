@@ -8,6 +8,7 @@ test('ログイン→OTP入力→ダッシュボード到達', async ({ page }) 
   const email = process.env.TAO_ADMIN_EMAIL;
   const password = process.env.TAO_ADMIN_PASSWORD;
   const loginOnly = /^(1|true|yes)$/i.test(process.env.TAO_LOGIN_ONLY || '');
+  const manualOtp = /^(1|true|yes)$/i.test(process.env.TAO_OTP_MANUAL || '');
 
   if (!baseUrl || !email || !password) {
     throw new Error('環境変数 TAO_BASE_URL, TAO_ADMIN_EMAIL, TAO_ADMIN_PASSWORD を設定してください。');
@@ -32,16 +33,23 @@ test('ログイン→OTP入力→ダッシュボード到達', async ({ page }) 
     return;
   }
 
-  const otp = await promptOtp('メールに届いた6桁コードを入力してください: ');
-  await loginPage.enterOtp(otp);
+  if (manualOtp) {
+    // ブラウザ上でユーザーが直接OTPを入力し、認証ボタンを押すのを待つ
+    // eslint-disable-next-line no-console
+    console.log('Manual OTP mode: ブラウザで6桁コードを入力し、認証ボタンを押してください。');
+    await loginPage.expectDashboardVisible();
+    return;
+  } else {
+    const otp = await promptOtp('メールに届いた6桁コードを入力してください: ');
+    await loginPage.enterOtp(otp);
+    await loginPage.submitOtp();
 
-  await loginPage.submitOtp();
-
-  // 目的ページへ（保護ルート）遷移して可視性確認 or ダッシュボード確認
-  try {
-    await loginPage.goto(baseUrl);
-  } catch {
-    // baseUrl が保護ルートでなければスキップ
+    // 目的ページへ（保護ルート）遷移して可視性確認 or ダッシュボード確認
+    try {
+      await loginPage.goto(baseUrl);
+    } catch {
+      // baseUrl が保護ルートでなければスキップ
+    }
+    await loginPage.expectDashboardVisible();
   }
-  await loginPage.expectDashboardVisible();
 });
