@@ -1,0 +1,8 @@
+node_modules/
+playwright-report/
+trace.zip
+*.log
+.test-results/
+test-results/
+.DS_Store
+.vscode/
