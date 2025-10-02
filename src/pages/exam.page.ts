@@ -38,7 +38,7 @@ export class ExamPage {
     }
 
     // 募集名称
-    const nameInput = this.page.getByLabel(/募集名称|入試名称|名称|タイトル|Name/i).first()
+    const nameInput = this.page.getByLabel(/募集名|募集名称|入試名称|名称|タイトル|Name/i).first()
       .or(this.page.getByPlaceholder(/募集名称|入試名称|名称|Title|Name/i).first());
     await expect(nameInput).toBeVisible();
     await nameInput.fill(input.name);
@@ -51,7 +51,18 @@ export class ExamPage {
     const cls = (await deptSelector.getAttribute('class')) || '';
     const isSelect2 = cls.includes('select2-hidden-accessible');
     if (tagName === 'SELECT' && !isSelect2) {
-      await deptSelector.selectOption({ label: input.department });
+      try {
+        await deptSelector.selectOption({ label: input.department });
+      } catch {
+        await deptSelector.evaluate((el, dept) => {
+          const s = el as HTMLSelectElement;
+          const opt = Array.from(s.options).find(o => (o.label || o.textContent || '').includes(dept as string));
+          if (opt) {
+            s.value = opt.value;
+            s.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, input.department);
+      }
     } else if (isSelect2) {
       const opener = deptSelector.locator('xpath=following-sibling::span[contains(@class,"select2")]//span[contains(@class,"select2-selection")]').first();
       await opener.click();
@@ -68,17 +79,26 @@ export class ExamPage {
 
     // 言語（任意）
     if (input.language) {
-      const langSelector = this.page.getByLabel(/言語|Language/i).first()
-        .or(this.page.getByPlaceholder(/言語|Language/i).first());
-      if (await langSelector.count()) {
-        const t = (await langSelector.evaluate(el => (el as HTMLElement).tagName)).toUpperCase();
-        if (t === 'SELECT') {
-          await langSelector.selectOption({ label: input.language });
-        } else {
-          await langSelector.fill(input.language);
-          const opt = this.page.getByRole('option', { name: new RegExp(input.language) }).first();
-          if (await opt.count()) await opt.click();
-          else await this.page.keyboard.press('Enter');
+      // ラジオ優先（日本語/英語）
+      const jp = this.page.getByLabel(/日本語/);
+      const en = this.page.getByLabel(/英語|English/i);
+      if (/日本語/.test(input.language) && await jp.count()) {
+        await jp.first().check().catch(async () => await jp.first().click());
+      } else if (/英語|English/i.test(input.language) && await en.count()) {
+        await en.first().check().catch(async () => await en.first().click());
+      } else {
+        const langSelector = this.page.getByLabel(/言語|Language/i).first()
+          .or(this.page.getByPlaceholder(/言語|Language/i).first());
+        if (await langSelector.count()) {
+          const t = (await langSelector.evaluate(el => (el as HTMLElement).tagName)).toUpperCase();
+          if (t === 'SELECT') {
+            await langSelector.selectOption({ label: input.language });
+          } else {
+            await langSelector.fill(input.language);
+            const opt = this.page.getByRole('option', { name: new RegExp(input.language) }).first();
+            if (await opt.count()) await opt.click();
+            else await this.page.keyboard.press('Enter');
+          }
         }
       }
     }
@@ -87,6 +107,9 @@ export class ExamPage {
     const { start, end } = computeFutureRange();
     await this.fillDateTimeFlexible([/募集開始日時|開始日時|Start/i], start);
     await this.fillDateTimeFlexible([/募集締切日時|締切|End|Deadline/i], end);
+
+    // 定員（必須になっているケースがある）
+    await this.fillTextOrNumber([/定員|募集人数|募集定員/], '10');
 
     // 検定料免除コード
     if (input.feeExemptionCode) {
@@ -105,12 +128,20 @@ export class ExamPage {
       if (await venueInput.count()) await venueInput.fill(input.venue);
     }
 
-    const save = this.page.getByRole('button', { name: /保存|登録|Save|作成/i })
-      .or(this.page.getByRole('link', { name: /保存|登録|Save|作成/i }))
-      .or(this.page.locator('button, a', { hasText: /保存|登録|Save|作成/i }));
-    await save.first().click();
+    const save = this.page.getByRole('button', { name: /保存する|保存|登録|Save|作成/i })
+      .or(this.page.getByRole('link',   { name: /保存する|保存|登録|Save|作成/i }))
+      .or(this.page.locator('button, a', { hasText: /保存する|保存|登録|Save|作成/i }));
+    const saveBtn = save.first();
+    await saveBtn.scrollIntoViewIfNeeded();
+    await Promise.all([
+      this.page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {}),
+      saveBtn.click()
+    ]);
 
-    // 成功判定: 一覧に名称が見える
+    // 一覧へ遷移してから確認（パンくずの「募集一覧」優先）
+    await this.gotoRecruitmentList();
+    // 一覧は初期表示で空の可能性があるため、募集名で絞り込み
+    await this.filterByName(input.name);
     await expect(this.page.getByText(input.name, { exact: false })).toBeVisible({ timeout: 15000 });
   }
 
@@ -126,5 +157,57 @@ export class ExamPage {
       return;
     }
   }
-}
 
+  private async fillTextOrNumber(labelRegexes: RegExp[], value: string) {
+    for (const rx of labelRegexes) {
+      const control = this.page.getByLabel(rx).first().or(this.page.getByPlaceholder(rx).first());
+      if (!(await control.count())) continue;
+      try {
+        await control.fill(value);
+      } catch {
+        await this.page.evaluate((el, v) => {
+          const node = el as HTMLInputElement | HTMLTextAreaElement;
+          (node as any).value = v as string;
+          node.dispatchEvent(new Event('input', { bubbles: true }));
+          node.dispatchEvent(new Event('change', { bubbles: true }));
+        }, await control.elementHandle(), value);
+      }
+      return;
+    }
+  }
+
+  private async gotoRecruitmentList(): Promise<void> {
+    const listLink = this.page.getByRole('link', { name: /募集一覧|募集|一覧|戻る/i })
+      .or(this.page.locator('a', { hasText: /募集一覧/ }));
+    if (await listLink.first().count()) {
+      try {
+        await Promise.all([
+          this.page.waitForLoadState('domcontentloaded', { timeout: 4000 }).catch(() => {}),
+          listLink.first().click({ timeout: 1000 })
+        ]);
+      } catch {}
+    }
+    // 保険として一覧の見出しを待つ
+    await this.page
+      .getByRole('heading', { name: /募集|入試|Recruitment/i })
+      .waitFor({ timeout: 5000 }).catch(() => {});
+  }
+
+  private async filterByName(name: string): Promise<void> {
+    // 募集名の入力欄を探す
+    const nameFilter = this.page.getByLabel(/募集名|募集名称|名称|Title|Name/i).first()
+      .or(this.page.locator('input[placeholder*="募集"]').first());
+    if (await nameFilter.count()) {
+      await nameFilter.fill(name);
+    }
+    // 「この条件で絞り込む」ボタンがあれば押す
+    const filterBtn = this.page.getByRole('button', { name: /この条件で絞り込む|絞り込む|検索|Search/i })
+      .or(this.page.locator('button, a', { hasText: /この条件で絞り込む|絞り込む|検索/ }));
+    if (await filterBtn.count()) {
+      await Promise.all([
+        this.page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {}),
+        filterBtn.first().click()
+      ]);
+    }
+  }
+}
