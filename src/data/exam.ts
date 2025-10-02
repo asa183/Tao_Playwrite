@@ -7,6 +7,7 @@ export type ExamInput = {
   venue?: string;            // 例: 西千葉キャンパス
   contactName?: string;      // 問い合わせ名称（必須の場合に使用）
   contactEmail?: string;     // 問い合わせメールアドレス（必須の場合に使用）
+  contactPhone?: string;     // 問い合わせ電話番号（任意/必須対策）
 };
 
 export function computeFutureRange(now = new Date()) {
@@ -39,7 +40,8 @@ export const exams: ExamInput[] = [
     examDate: '2026-02-20',
     venue: '西千葉キャンパス',
     contactName: '入試担当（理学部）',
-    contactEmail: 'admissions@example.com'
+    contactEmail: 'admissions@example.com',
+    contactPhone: '043-000-0000'
   },
   {
     name: '2026年度 理学部 総合選抜（地球科学科）',
@@ -49,6 +51,7 @@ export const exams: ExamInput[] = [
     examDate: '2026-02-21',
     venue: '西千葉キャンパス',
     contactName: '入試担当（理学部）',
-    contactEmail: 'admissions@example.com'
+    contactEmail: 'admissions@example.com',
+    contactPhone: '043-000-0000'
   }
 ];

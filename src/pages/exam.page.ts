@@ -143,6 +143,13 @@ export class ExamPage {
       /メールアドレス|E[- ]?mail|email/i
     ], contactEmail);
 
+    // 問い合わせ電話（任意/必須対策）
+    if (input.contactPhone) {
+      await this.fillTextOrNumber([
+        /電話|TEL|Tel|Phone/i,
+      ], input.contactPhone);
+    }
+
     const save = this.page.getByRole('button', { name: /保存する|保存|登録|Save|作成/i })
       .or(this.page.getByRole('link',   { name: /保存する|保存|登録|Save|作成/i }))
       .or(this.page.locator('button, a', { hasText: /保存する|保存|登録|Save|作成/i }));
@@ -154,6 +161,11 @@ export class ExamPage {
     ]);
 
     // 一覧へ遷移してから確認（パンくずの「募集一覧」優先）
+    // もしバリデーションエラーが残っていれば早期に検知
+    const hasError = await this.page.getByText(/必須|入力してください|エラー|Error/i).first().isVisible().catch(() => false);
+    if (hasError) {
+      throw new Error('保存時に必須エラーが発生しています。入力項目をご確認ください。');
+    }
     await this.gotoRecruitmentList();
     // 一覧は初期表示で空の可能性があるため、募集名で絞り込み
     await this.filterByName(input.name);
