@@ -5,6 +5,8 @@ export type ExamInput = {
   feeExemptionCode?: string; // 例: menjo
   examDate?: string;         // 例: 2026-03-10（画面に存在する場合のみ使用）
   venue?: string;            // 例: 西千葉キャンパス
+  contactName?: string;      // 問い合わせ名称（必須の場合に使用）
+  contactEmail?: string;     // 問い合わせメールアドレス（必須の場合に使用）
 };
 
 export function computeFutureRange(now = new Date()) {
@@ -35,7 +37,9 @@ export const exams: ExamInput[] = [
     language: '日本語',
     feeExemptionCode: 'menjo',
     examDate: '2026-02-20',
-    venue: '西千葉キャンパス'
+    venue: '西千葉キャンパス',
+    contactName: '入試担当（理学部）',
+    contactEmail: 'admissions@example.com'
   },
   {
     name: '2026年度 理学部 総合選抜（地球科学科）',
@@ -43,7 +47,8 @@ export const exams: ExamInput[] = [
     language: '日本語',
     feeExemptionCode: 'menjo',
     examDate: '2026-02-21',
-    venue: '西千葉キャンパス'
+    venue: '西千葉キャンパス',
+    contactName: '入試担当（理学部）',
+    contactEmail: 'admissions@example.com'
   }
 ];
-

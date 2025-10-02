@@ -128,6 +128,21 @@ export class ExamPage {
       if (await venueInput.count()) await venueInput.fill(input.venue);
     }
 
+    // 問い合わせ名称（必須対策）
+    const contactName = input.contactName ?? '入試担当';
+    await this.fillTextOrNumber([
+      /問い合わせ.*(名|名称)|問合せ.*(名|名称)|お問い合わせ.*(名|名称)/i,
+      /連絡先.*(名|名称)/i
+    ], contactName);
+
+    // 問い合わせメールアドレス（必須対策）
+    const contactEmail = input.contactEmail ?? 'admissions@example.com';
+    await this.fillTextOrNumber([
+      /問い合わせ.*メール|問合せ.*メール|お問い合わせ.*メール/i,
+      /連絡先.*メール/i,
+      /メールアドレス|E[- ]?mail|email/i
+    ], contactEmail);
+
     const save = this.page.getByRole('button', { name: /保存する|保存|登録|Save|作成/i })
       .or(this.page.getByRole('link',   { name: /保存する|保存|登録|Save|作成/i }))
       .or(this.page.locator('button, a', { hasText: /保存する|保存|登録|Save|作成/i }));
